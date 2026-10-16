@@ -1,3 +1,10 @@
+"""In-memory patient management app with a simple interactive command-line menu.
+
+The :class:`HospitalManager` class contains the application logic. Run this
+file directly to use the menu, or import the class to use the same operations
+from another Python program. Patient and billing data are not saved to disk.
+"""
+
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -5,6 +12,8 @@ from decimal import Decimal, InvalidOperation
 
 @dataclass
 class Bill:
+    """A charge recorded for a patient."""
+
     amount: Decimal
     description: str
     generated_on: date = field(default_factory=date.today)
@@ -12,6 +21,8 @@ class Bill:
 
 @dataclass
 class Patient:
+    """Patient details, their assigned doctor, and their bills."""
+
     patient_id: str
     name: str
     age: int
@@ -22,16 +33,29 @@ class Patient:
 
 
 class HospitalManager:
+    """Store patients and perform admission, assignment, and billing tasks.
+
+    Each instance keeps its own patient records in memory. The records are
+    cleared when the application exits; this example does not use a database.
+    """
+
     def __init__(self) -> None:
+        """Start with no patients and begin assigning IDs at P0001."""
         self.patients: dict[str, Patient] = {}
         self._next_patient_number = 1
 
     def admit_patient(self, name: str, age: int, condition: str) -> Patient:
+        """Create a patient record and return it.
+
+        Patient IDs are assigned sequentially. A blank name or non-positive age
+        raises ``ValueError``.
+        """
         if not name.strip():
             raise ValueError("Patient name cannot be empty.")
         if age <= 0:
             raise ValueError("Age must be a positive number.")
 
+        # Keep IDs predictable for the CLI and easy to read in reports.
         patient_id = f"P{self._next_patient_number:04d}"
         self._next_patient_number += 1
         patient = Patient(patient_id, name.strip(), age, condition.strip())
@@ -39,6 +63,11 @@ class HospitalManager:
         return patient
 
     def assign_doctor(self, patient_id: str, doctor_name: str) -> Patient:
+        """Assign a doctor to a patient and return the updated patient.
+
+        Raises ``ValueError`` if the patient does not exist or the doctor name
+        is blank. Assigning another doctor replaces the current assignment.
+        """
         patient = self._get_patient(patient_id)
         if not doctor_name.strip():
             raise ValueError("Doctor name cannot be empty.")
@@ -48,6 +77,12 @@ class HospitalManager:
     def generate_bill(
         self, patient_id: str, amount: Decimal, description: str
     ) -> Bill:
+        """Create and attach a bill, then return it.
+
+        ``amount`` must be a non-negative :class:`~decimal.Decimal`, and
+        ``description`` must not be blank. Raises ``ValueError`` otherwise or
+        when the patient ID is unknown.
+        """
         patient = self._get_patient(patient_id)
         if amount < 0:
             raise ValueError("Bill amount cannot be negative.")
@@ -59,7 +94,13 @@ class HospitalManager:
         return bill
 
     def generate_summary_report(self, patient_id: str) -> str:
+        """Return a readable patient report including the total billed amount.
+
+        Raises ``ValueError`` if ``patient_id`` does not identify an admitted
+        patient.
+        """
         patient = self._get_patient(patient_id)
+        # Decimal avoids floating-point rounding errors in currency totals.
         total_billed = sum((bill.amount for bill in patient.bills), Decimal("0.00"))
         doctor = patient.doctor or "Not assigned"
         return (
@@ -75,6 +116,7 @@ class HospitalManager:
         )
 
     def print_patients(self) -> None:
+        """Print a compact list of all admitted patients."""
         if not self.patients:
             print("No patients have been admitted.")
             return
@@ -89,6 +131,10 @@ class HospitalManager:
             )
 
     def _get_patient(self, patient_id: str) -> Patient:
+        """Find a patient by ID, ignoring letter case and surrounding spaces.
+
+        Raises ``ValueError`` with a readable message when no patient matches.
+        """
         try:
             return self.patients[patient_id.strip().upper()]
         except KeyError as error:
@@ -96,6 +142,10 @@ class HospitalManager:
 
 
 def read_amount(prompt: str) -> Decimal:
+    """Read a dollar amount from the user and round it to cents.
+
+    Raises ``ValueError`` if the input is not a valid decimal number.
+    """
     try:
         return Decimal(input(prompt).strip()).quantize(Decimal("0.01"))
     except InvalidOperation as error:
@@ -103,6 +153,7 @@ def read_amount(prompt: str) -> Decimal:
 
 
 def run_app() -> None:
+    """Run the interactive menu until the user chooses Exit."""
     manager = HospitalManager()
     while True:
         print(
